@@ -7,14 +7,20 @@ from flask import Flask
 from dotenv import load_dotenv
 
 app = Flask(__name__)
+# loading variables from .env file
+load_dotenv()
+AWS_REGION = os.getenv('AWS_REGION')
+P1_QUEUE = os.getenv('P1_QUEUE')
+ACCESS_KEY = os.getenv('ACCESS_KEY')
+SECRET_ACCESS_KEY = os.getenv('SECRET_ACCESS_KEY')
+TEAMS_WEBHOOK = os.getenv('TEAMS_WEBHOOK')
+
 
 def process_message():
-    # loading variables from .env file
-    load_dotenv()
-    sqs = boto3.client('sqs', region_name=os.getenv('AWS_REGION'), aws_access_key_id=os.getenv('ACCESS_KEY'),
-                       aws_secret_access_key=os.getenv('SECRET_ACCESS_KEY'))
+    sqs = boto3.client('sqs', region_name=AWS_REGION, aws_access_key_id=ACCESS_KEY ,
+                       aws_secret_access_key=SECRET_ACCESS_KEY)
 
-    response = sqs.receive_message(QueueUrl=os.getenv('P3_QUEUE'), MessageAttributeNames=['All'],
+    response = sqs.receive_message(QueueUrl=P1_QUEUE, MessageAttributeNames=['All'],
                                    MaxNumberOfMessages=1, WaitTimeSeconds=20)
 
     messages = response.get('Messages')
@@ -30,15 +36,17 @@ def process_message():
             "text": body["description"]
         }
 
-        teams_message = pymsteams.connectorcard(os.getenv('TEAMS_WEBHOOK'))
+        teams_message = pymsteams.connectorcard(TEAMS_WEBHOOK)
         teams_message.payload = payload
         teams_message.send()
 
 
         sqs.delete_message(
-            QueueUrl=os.getenv('P3_QUEUE'),
+            QueueUrl=P1_QUEUE,
             ReceiptHandle=message['ReceiptHandle']
         )
+    else:
+        print("No messages in queue")
 
 if __name__ == '__main__':
     process_message()
