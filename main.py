@@ -1,7 +1,7 @@
 import json
 import os
 import threading
-import logging
+from loguru import logger
 
 import boto3
 import pymsteams
@@ -18,56 +18,74 @@ ACCESS_KEY = os.getenv('ACCESS_KEY')
 SECRET_ACCESS_KEY = os.getenv('SECRET_ACCESS_KEY')
 TEAMS_WEBHOOK = os.getenv('TEAMS_WEBHOOK')
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
-
 stop_flag = False
 
 def process_message():
     global stop_flag
     while not stop_flag:
-        sqs = boto3.client('sqs', region_name=AWS_REGION, aws_access_key_id=ACCESS_KEY ,
+        try:
+            #Set sqs client
+            sqs = boto3.client('sqs', region_name=AWS_REGION, aws_access_key_id=ACCESS_KEY ,
                            aws_secret_access_key=SECRET_ACCESS_KEY)
 
-        response = sqs.receive_message(
-            QueueUrl=P1_QUEUE,
-            MessageAttributeNames=['All'],
-            MaxNumberOfMessages=1,
-            WaitTimeSeconds=20
-        )
-
-        messages = response.get('Messages')
-        if messages is not None:
-            message = messages[0]
-            logger.info("Message received from queue with ID" + json.dumps(response.get('MessageId')))
-            body = json.loads(message['Body'])
-            if "title" in body and "description" in body:
-                if body["title"] and body["description"]:
-                    payload = {
-                        "@type": "MessageCard",
-                        "@context": "http://schema.org/extensions",
-                        "themeColor": "FF0000",
-                        "title": body["title"],
-                        "text": body["description"]
-                    }
-
-                    teams_message = pymsteams.connectorcard(TEAMS_WEBHOOK)
-                    teams_message.payload = payload
-                    logger.info("Sending Teams alert")
-                    teams_message.send()
-                    logger.info("Teams alert sent, payload" + json.dumps(payload))
-                else:
-                    logger.error("Either the title or description or both are empty")
-            else:
-                logger.error("Either the title or description or both are missing from the SQS message")
-
-            sqs.delete_message(
+            #Receieve message
+            response = sqs.receive_message(
                 QueueUrl=P1_QUEUE,
-                ReceiptHandle=message['ReceiptHandle']
+                MessageAttributeNames=['All'],
+                MaxNumberOfMessages=1,
+                WaitTimeSeconds=20
             )
-            logger.info("Message deleted from queue with ID:" + json.dumps(response.get('MessageId')))
-        else:
-            logger.info("No messages in queue")
+
+            messages = response.get('Messages')
+
+            #If there are messages in queue
+            if messages is not None:
+                #Get the first message
+                message = messages[0]
+                logger.info(f"Message received from queue with ID: {message["MessageId"]}")
+
+                #Get the body
+                body = json.loads(message['Body'])
+
+                #Validate the body
+                if "title" in body and "description" in body:
+                    if body["title"] and body["description"]:
+
+                        #Create teams card
+                        payload = {
+                            "@type": "MessageCard",
+                            "@context": "http://schema.org/extensions",
+                            "themeColor": "FF0000",
+                            "title": body["title"],
+                            "text": body["description"]
+                        }
+                        teams_message = pymsteams.connectorcard(TEAMS_WEBHOOK)
+                        teams_message.payload = payload
+
+                        #Send teams card
+                        logger.info("Sending Teams alert")
+                        teams_message.send()
+                        logger.info(f"Teams alert sent, payload: {json.dumps(payload)}")
+
+                    #Display error messages if anything is missing on the body
+                    else:
+                        logger.error("Either the title or description or both are empty")
+                else:
+                    logger.error("Either the title or description or both are missing from the SQS message")
+
+                #Delete message from queue
+                sqs.delete_message(
+                    QueueUrl=P1_QUEUE,
+                    ReceiptHandle=message['ReceiptHandle']
+                )
+                logger.info(f"Message deleted from queue with ID: {message["MessageId"]}")
+
+            #If there are no messages log that
+            else:
+                logger.info("No messages in queue")
+
+        except Exception as e:
+            logger.error(f"An error occurred: {e}")
 
 def background_thread():
     thread = threading.Thread(target=process_message, daemon=True)
