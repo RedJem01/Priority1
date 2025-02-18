@@ -69,15 +69,20 @@ def process_message():
         else:
             logger.info("No messages in queue")
 
-if __name__ == '__main__':
+def background_thread():
     thread = threading.Thread(target=process_message, daemon=True)
     thread.start()
+    return thread
+
+bg_thread = background_thread()
+
+if __name__ == '__main__':
     try:
         app.run(host="0.0.0.0")
     except KeyboardInterrupt:
         logger.info("Shutting down...")
         stop_flag = True
-        thread.join()
+        bg_thread.join()
 
 @app.route('/', methods=['GET'])
 def health_check():
