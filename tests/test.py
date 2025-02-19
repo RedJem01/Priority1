@@ -8,15 +8,22 @@ class FakeConnectorCard:
     def send(self):
         return "Sent"
 
+def set_environment_variables(queue_url):
+    main.P1_QUEUE = queue_url
+    main.AWS_REGION = 'eu-west-2'
+    main.ACCESS_KEY = 'testing'
+    main.SECRET_ACCESS_KEY = 'testing'
+    main.TEAMS_WEBHOOK = 'testing'
+    main.run_mode = 'test'
+
 @patch('pymsteams.connectorcard')
 def test_process_message(connectorcard_mock, sqs_client):
+    print("Starting test")
     queue = sqs_client.create_queue(QueueName='queue')
 
     queue_url = queue['QueueUrl']
 
-
-    # override function global URL variable
-    main.P1_QUEUE = queue_url
+    set_environment_variables(queue_url)
 
     connectorcard_mock.return_value = FakeConnectorCard()
 
@@ -36,8 +43,7 @@ def test_process_message_wrong_data(connectorcard_mock, sqs_client):
 
     queue_url = queue['QueueUrl']
 
-    # override function global URL variable
-    main.P1_QUEUE = queue_url
+    set_environment_variables(queue_url)
 
     connectorcard_mock.return_value = FakeConnectorCard()
 

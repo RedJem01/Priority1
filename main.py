@@ -20,6 +20,8 @@ TEAMS_WEBHOOK = os.getenv('TEAMS_WEBHOOK')
 
 stop_flag = False
 
+run_mode = 'prod'
+
 def process_message():
     global stop_flag
     while not stop_flag:
@@ -86,6 +88,9 @@ def process_message():
 
         except Exception as e:
             logger.error(f"An error occurred: {e}")
+
+        if run_mode == 'test':
+            stop_flag = True
 
 def background_thread():
     thread = threading.Thread(target=process_message, daemon=True)
